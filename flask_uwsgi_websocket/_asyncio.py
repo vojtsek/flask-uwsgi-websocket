@@ -58,8 +58,8 @@ class AsyncioWebSocketClient(WebSocketClient):
         return msg
 
     @asyncio.coroutine
-    def send(self, msg):
-        yield from self.a_send(msg)
+    def send(self, msg, binary=False):
+        yield from self.a_send(msg, binary)
 
     def send_nb(self, msg):
         if self.connected:
@@ -76,8 +76,8 @@ class AsyncioWebSocketClient(WebSocketClient):
         return msg
 
     @asyncio.coroutine
-    def a_send(self, msg):
-        yield from self.send_queue.put(msg)
+    def a_send(self, msg, binary):
+        yield from self.send_queue.put((msg, binary))
 
     def close(self):
         self.connected = False
@@ -129,8 +129,11 @@ class AsyncioWebSocketMiddleware(WebSocketMiddleware):
             while True:
                 f.greenlet.parent.switch()
                 if f.done():
-                    msg = f.result()
-                    uwsgi.websocket_send(msg)
+                    msg, binary = f.result()
+                    if binary:
+                        uwsgi.websocket_send_binary(msg)
+                    else:
+                        uwsgi.websocket_send(msg)
                     f = GreenFuture()
                     asyncio.Task(client._send_ready(f))
                 if client.has_msg:
